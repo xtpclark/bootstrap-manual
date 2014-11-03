@@ -176,5 +176,5 @@ fi
 
 log "Done! You now have yourself a bona fide xTuple Server."
 log "We recommend that you reboot the machine now"
-# rm -f bootstrap.sh
+mv bootstrap-manual.sh bootstrap-manual.ran
 exit 0
