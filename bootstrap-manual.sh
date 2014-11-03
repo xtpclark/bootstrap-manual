@@ -55,7 +55,7 @@ install_debian () {
 
 setup () {
  pg_dropcluster 9.3 main --stop > /dev/null 2>&1
- pg_createcluster 9.3 main > /dev/null 2>&1
+ pg_createcluster 9.3 main --locale=en_US.UTF-8 --start -o listen_addresses='*' -o log_line_prefix='%t %d %u ' -- --auth=trust --auth-host=trust --auth-local=trust
 
 }
 
@@ -85,12 +85,12 @@ if [ -f /etc/network/if-up.d/getip ]
  else
 cat << EOF >> /etc/network/if-up.d/getip
 #!/bin/sh
-if [ "$METHOD" = loopback ]; then
+if [ "\$METHOD" = loopback ]; then
     exit 0
 fi
 
 # Only run from ifup.
-if [ "$MODE" != start ]; then
+if [ "\$MODE" != start ]; then
     exit 0
 fi
 
