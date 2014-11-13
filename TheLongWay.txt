@@ -1,0 +1,225 @@
+Installing Mobile 4.7.0 the Long Way
+
+Ok, I know there are all sorts of things about xTuple Server etc. It really is a fantastic tool, you should check it out.
+
+For those of you who aren't UberFancy we (I) have an alternative installation path for you.
+
+First, let's set up the environment. Yes, dear reader... I've gone to the Ubuntu side for this.
+Honestly, it's not that bad. I'm sure I can make it work on RHEL too.
+
+"Any customer can have a car painted any color that he wants so long as it is black"
+ - Henry Ford
+
+Start with a freshly installed Ubuntu 14.04 - This can be a bare-metal install, VirtualBox, VMWare, ESXi, Zen, 
+it doesn't matter as long as it's Ubuntu Server 14.04 LTS Trusty in 64-bits.
+
+and set up the prerequsites. Some of tehe prerequsites are needed in general - like the build system for compiling software.
+and some are a part of the newfangled technology we're using in the xtuple server. I've separated the install processes so you know which are which.
+
+As my grandma used to say "Do as I say, not as I do.". Which means please run these commands with sudo.
+
+For brevity... I'm going to do all of this as root.
+
+She also said "Don't run with scissors!", "We're you born in a barn?" and "Do you have a tail?".
+
+sudo su -
+wget https://www.postgresql.org/media/keys/ACCC4CF8.asc
+apt-key add ACCC4CF8.asc
+echo "deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list
+
+add-apt-repository ppa:nginx/stable
+add-apt-repository ppa:git-core/ppa
+apt-get update
+
+apt-get install -y build-essential  libssl-dev  openssh-server  cups \
+python-software-properties openssl apt-show-versions curl git git-core \
+libnet-ssleay-perl  libauthen-pam-perl libpam-runtime  libio-pty-perl \
+perl libavahi-compat-libdnssd-dev python nginx-full  apache2-utils vim \
+postgresql-9.3 postgresql-server-dev-9.3 postgresql-contrib-9.3 postgresql-9.3-plv8
+
+
+"n" is a program that controls node versions. Install it.
+
+wget https://raw.githubusercontent.com/visionmedia/n/master/bin/n -qO n
+chmod +x n
+mv n /usr/bin/n
+
+Then, install node version 0.10 with it.
+
+n 0.10
+
+And install Node Package Manager, this manages NodeJS Packages, which xTuple Mobile makes heavy use of.
+
+npm install -g npm@1.4.28
+
+Ok - So, we've set up the dependencies for the server to support xTuple with the Mobile web. Now, we need to install an xtuple database.
+There are several ways to do this, but... since this is The Long Way, that's the way we're going to do it.
+
+Set up your postgresql.
+
+Let's check for a running postgresql.
+pg_lsclusters
+
+You should see something like:
+Version Cluster   Port Status Owner    Data directory                     Log file
+9.3     main 5432 online postgres /var/lib/postgresql/9.3/main  /var/log/postgresql/postgresql-9.3-main.log
+
+Let's stop it.
+pg_ctlcluster 9.3 main --stop
+
+Let's drop it.
+pg_dropcluster 9.3 main
+
+Let's recreate it.
+pg_createcluster 9.3 main --locale=en_US.UTF-8 --start -o listen_addresses='*' -o log_line_prefix='%t %d %u ' -- --auth=trust --auth-host=trust --auth-local=trust
+
+This is a pretty cool command-line to know. It adjusts the postgresql.conf and pg_hba.conf too!  You can set all sorts of things in the postgresql.conf file by adding -o options
+
+Create the xtrole and the admin user. We're going to do it from the command line. This is essentially what the init.sql file runs.
+
+psql -U postgres -p 5432 -c "CREATE ROLE xtrole; CREATE user admin SUPERUSER CREATEROLE CREATEDB password 'admin' in group xtrole;"
+
+Grab an xTuple postbooks demo database from sourceforge and put it on your server.  I've added a bit.ly short url to the postbooks 470 demo datbase.
+
+wget http://bit.ly/10CtvwM -O pb470demo.backup
+
+Create a database.
+createdb -U admin -p 5432 pbdemo
+
+Restore the database you downloaded to the empty database you created.
+pg_restore -U admin -p 5432 -d pbdemo pb470demo.backup
+
+Once the restore is done, try this command.
+psql -At -U admin -p 5432 pbdemo -c "SELECT metric_value FROM metric WHERE metric_name='Application';"
+
+You should see 4.7.0 on your command line.
+
+Ok, go grab a fair-trade coffee, or gluten-free beer, or some kambucha, or some fermented wheatgrass blend with cabbage probiotics.
+You've just set up just about enough to get going. You now have a living PostBooks database. Congratulations.
+
+But wait!!! You said this is about setting up mobile!
+Patience Grasshopper. Go get a refreshment and come back. Seriously.
+
+Now, let's work on getting mobile up and running.
+
+Let's make a directory to put it in.
+mkdir -p /usr/local/xtuple
+
+cd /usr/local/xtuple
+git clone https://github.com/xtuple/xtuple.git 
+cd /usr/local/xtuple/xtuple
+git checkout v4.7.0
+git submodule update --init --recursive
+npm install
+
+cd /usr/local/xtuple
+git clone https://github.com/xtuple/xtuple-extensions.git
+cd /usr/local/xtuple/xtuple-extensions 
+git checkout v4.7.0
+git submodule update --init --recursive
+npm install
+
+Next, setup the main mobile config file to point to your database.
+
+mkdir -p /etc/xtuple/lib/private
+
+cat /dev/urandom | tr -dc '0-9a-zA-Z!@#$%^&*_+-'| head -c 64 > /etc/xtuple/lib/private/salt.txt
+cat /dev/urandom | tr -dc '0-9a-zA-Z!@#$%^&*_+-'| head -c 64 > /etc/xtuple/lib/private/encryption_key.txt
+
+openssl genrsa -des3 -out /etc/xtuple/lib/private/server.key -passout pass:xtuple 1024
+openssl rsa -in /etc/xtuple/lib/private/server.key -passin pass:xtuple -out /etc/xtuple/lib/private/key.pem -passout pass:xtuple
+openssl req -batch -new -key /etc/xtuple/lib/private/key.pem -out /etc/xtuple/lib/private/server.csr -subj '/CN='$(hostname)
+openssl x509 -req -days 365 -in /etc/xtuple/lib/private/server.csr -signkey /etc/xtuple/lib/private/key.pem -out /etc/xtuple/lib/private/server.crt
+
+cp /usr/local/xtuple/xtuple/node-datasource/sample_config.js /etc/xtuple/config.js
+
+nano /etc/xtuple/config.js
+
+Find these lines and make the following changes:
+
+encryptionKeyFile: "/etc/xtuple/lib/private/encryption_key.txt",
+keyFile: "/etc/xtuple/lib/private/key.pem",
+certFile: "/etc/xtuple/lib/private/server.crt",
+saltFile: "/etc/xtuple/lib/private/salt.txt",
+databases: ["pbdemo"],
+
+and save the config.js
+
+Ok, now that the config.js is out of the way, let's try building mobile and applying it to our pbdemo database.
+
+cd /usr/local/xtuple/xtuple
+./scripts/build_app.js -c /etc/xtuple/config.js
+
+And, you should start to see....
+building client core
+building crm
+building project
+building sales
+building billing
+building purchasing
+building oauth2
+info: Applying build to database pbdemo
+info: Success installing all scripts.
+info: Cleaning up.
+
+
+Now, start mobile. 
+cd /usr/local/xtuple/xtuple/node-datasource
+
+and run...
+./main.js -c /etc/xtuple/config.js 
+
+If you see this... it's good!
+================================================
+XTUPLE NODE.JS SERVER
+================================================
+
+<<LOG 2014-10-30T21:44:57.929Z>> SessionStore using hybridCache = true
+   info  - socket.io started
+<<LOG 2014-10-30T21:44:57.993Z>> Server listening at: 0.0.0.0
+<<LOG 2014-10-30T21:44:57.994Z>> node-datasource started on port: 8443
+<<LOG 2014-10-30T21:44:57.994Z>> redirectServer started on port: 8888
+<<LOG 2014-10-30T21:44:57.995Z>> Databases accessible from this server: 
+[
+  "pbdemo"
+]
+<<LOG 2014-10-30T21:44:58.002Z>> Writing pid file 'node-datasource_6101.pid'
+<<LOG 2014-10-30T21:44:58.013Z>> Listening for postgres notifications on the nodext channel on pbdemo
+
+Now, that isn't a very nice way to start and stop a service is it. So, let's make a start/stop script, using the upstart system.
+CTRL-C to stop the above command.
+
+nano /etc/init/xtuple.conf
+
+=====CUT-N-PASTE=====
+# xTuple
+#
+# The xTuple-node process allows mobile connections
+
+description     "xTuple Node Server"
+
+start on filesystem or runlevel [2345]
+stop on runlevel [!2345]
+
+console output
+respawn
+
+chdir /usr/local/xtuple/xtuple/node-datasource
+exec n use 0.10
+exec ./main.js -c /etc/xtuple/config.js > /var/log/node-datasource.log 2>&1
+
+=====CUT-N-PASTE=====
+
+And save that file.
+
+Now, start it...
+service xtuple start
+
+And stop it with:
+service xtuple stop
+
+
+
+
+
+
