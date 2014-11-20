@@ -73,6 +73,15 @@ pg_dropcluster 9.3 main
 Let's recreate it.
 pg_createcluster 9.3 main --locale=en_US.UTF-8 --start -o listen_addresses='*' -o log_line_prefix='%t %d %u ' -- --auth=trust --auth-host=trust --auth-local=trust
 
+*Optional config note:
+*Many times a single disk solution does not provide the performance necessary for large datasets. This can be mitigated by using more disks.
+*In most xTuple implementations, the disk size is not as important as the number of spindles - i.e. RAID. Or, many small capacity low latency disks accessing the data.
+*If you have a RAID or disk that you would like to use for this postgresql cluster, you can specify that too. 
+*Providied that you have already established drives and the mount point.
+*This is accomplished by passing the -d flag to pg_createcluster.
+*In this example, /var/lib/postgresql/9.3/bigdisk already exists and is mounted.
+*pg_createcluster 9.3 main -d /var/lib/postgresql/9.3/bigdisk --locale=en_US.UTF-8 --start -o listen_addresses='*' -o log_line_prefix='%t %d %u ' -- --auth=trust --auth-host=trust --auth-local=trust
+
 This is a pretty cool command-line to know. It adjusts the postgresql.conf and pg_hba.conf too!  You can set all sorts of things in the postgresql.conf file by adding -o options
 
 Create the xtrole and the admin user. We're going to do it from the command line. This is essentially what the init.sql file runs.
