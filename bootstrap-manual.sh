@@ -55,6 +55,11 @@ install_debian () {
 getxtnbackup()
 {
 git clone http://github.com/xtpclark/xtnbackup
+mkdir -p /mnt/backup
+cp xtnbackup/backup/xtnbak-new.sh /mnt/backup/xtn_backup.sh
+cd /mnt/backup
+sudo bash ./xtn_backup.sh
+cd -
 }
 
 setup() {
