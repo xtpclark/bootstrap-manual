@@ -46,14 +46,18 @@ install_debian () {
     postgresql-contrib-$XT_PG_VERSION postgresql-$XT_PG_VERSION-plv8 \
     libavahi-compat-libdnssd-dev \
     perl libnet-ssleay-perl openssl libauthen-pam-perl libpam-runtime libio-pty-perl apt-show-versions python \
-    s3cmd --force-yes | tee -a $logfile > /dev/null 2>&1
+    s3cmd python-magic --force-yes | tee -a $logfile > /dev/null 2>&1
 
   log "Cleaning up packages..."
   apt-get -qq autoremove --force-yes > /dev/null 2>&1
 }
 
+getxtnbackup()
+{
+git clone http://github.com/xtpclark/xtnbackup
+}
 
-setup () {
+setup() {
  pg_dropcluster 9.3 main --stop > /dev/null 2>&1
  pg_createcluster 9.3 main --locale=en_US.UTF-8 --start -o listen_addresses='*' -o log_line_prefix='%t %d %u ' -- --auth=trust --auth-host=trust --auth-local=trust
 
@@ -167,7 +171,12 @@ log "         xxx     xxx\n"
 if [[ ! -z $(which apt-get) ]]; then
   install_debian
   setup
+  getxtnbackup
+ if [[ -z $(which ec2metadata) ]]; then
   setupgetip
+ else
+  log "not installing setupgetip."
+ fi
   echo ''
 else
   log "apt-get not found."
